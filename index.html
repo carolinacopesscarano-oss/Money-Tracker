@@ -1,1 +1,637 @@
-file:///Users/carolinacopesscarano/Downloads/files/Money-Tracker-Supabase.html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Money Tracker 💎</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#F4F6F9;font-family:Georgia,serif;color:#1E293B;-webkit-tap-highlight-color:transparent}
+select,input,button{font-family:Georgia,serif}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const{useState,useEffect,useRef,useCallback}=React;
+
+// ── SUPABASE ──
+const SUPA_URL="https://owsanfynwpqcovygcpgh.supabase.co";
+const SUPA_KEY="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im93c2FuZnlud3BxY292eWdjcGdoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzczNDczMDksImV4cCI6MjA5MjkyMzMwOX0.8D7kmwcn4p6Ys1qHccWy0Ttr1jKsiwlWnlBAdlWJWns";
+const supabase=window.supabase.createClient(SUPA_URL,SUPA_KEY);
+
+const CAT_COLORS=["#2D3748","#4A5568","#718096","#A0AEC0","#CBD5E0"];
+const SUB_PAL=["#2D3748","#4A5568","#718096","#A0AEC0","#CBD5E0","#64748B","#94A3B8","#334155","#475569","#1E293B"];
+const CAT_ICONS={"Basic expenses":"🏠","Lifestyle":"✨","Personal development":"📚","Savings":"🏦","Extraordinary expense":"⚡"};
+const MAIN_CATS=["Basic expenses","Lifestyle","Personal development","Savings","Extraordinary expense"];
+const HOSP=["Pedlar Project","Spirited Goat","Townsville Brewing"];
+const DEF_BUCKETS=["Fondo de paz","Bali","Kenia y Tanzania","Pago Vicky","Licencia de conducir","Boda","Dentista","Auto","Inversiones"];
+
+const S={
+  bg:"#F4F6F9",card:"#FFFFFF",border:"#E2E8F0",
+  accentD:"#1E293B",accent:"#475569",silverL:"#EEF2F7",
+  text:"#1E293B",text2:"#334155",muted:"#64748B",mutedL:"#94A3B8",
+  green:"#15803D",red:"#DC2626",
+  shadow:"rgba(71,85,105,0.07)",shadowM:"rgba(71,85,105,0.15)",
+};
+const card={background:S.card,border:`1px solid ${S.border}`,borderRadius:18,padding:"16px",boxShadow:`0 2px 10px ${S.shadow}`,marginBottom:12};
+const inp={width:"100%",background:S.bg,border:`1.5px solid ${S.border}`,borderRadius:12,padding:"11px 14px",color:S.text,fontSize:15,fontFamily:"Georgia,serif",outline:"none",boxSizing:"border-box"};
+const btnP={background:S.accentD,border:"none",borderRadius:12,padding:"12px 20px",color:"#fff",fontWeight:"bold",fontSize:14,cursor:"pointer",fontFamily:"Georgia,serif"};
+const btnG={background:"transparent",border:`1.5px solid ${S.border}`,borderRadius:12,padding:"12px 16px",color:S.muted,fontSize:14,cursor:"pointer",fontFamily:"Georgia,serif"};
+
+const RULES=[
+  {kw:["ahorro","ahorros","savings","saving"],sub:"Ahorro",cat:"Savings",icon:"🏦"},
+  {kw:["bici","bicicleta","bike","bicycle"],sub:"Bici",cat:"Extraordinary expense",icon:"⚡"},
+  {kw:["vida creativa","creativa","creative life"],sub:"Vida creativa",cat:"Personal development",icon:"🎨"},
+  {kw:["coles","cole's","woolies","woolworths","whollies","wholies","woollies","aldi","iga","supermercado","súper","super","mercado"],sub:"Supermercado",cat:"Basic expenses",icon:"🛒"},
+  {kw:["scooter","bus","tren","train","uber","taxi","transporte","transport","metro","ferry","colectivo"],sub:"Transporte",cat:"Basic expenses",icon:"🚌"},
+  {kw:["gym","pilates","yoga","fitness","crossfit"],sub:"Gym",cat:"Basic expenses",icon:"🏋️"},
+  {kw:["farmacia","pharmacy","medicamento","medicine","compeed","remedios"],sub:"Farmacia",cat:"Basic expenses",icon:"💊"},
+  {kw:["móvil","celular","phone","internet","telefono","teléfono"],sub:"Servicios",cat:"Basic expenses",icon:"📱"},
+  {kw:["alquiler","rent","electricidad","electricity","gas","agua","bills","luz"],sub:"Vivienda",cat:"Basic expenses",icon:"🏠"},
+  {kw:["restaurant","restaurante","café","cafe","coffee","bar","lunch","dinner","brunch","comida"],sub:"Comidas afuera",cat:"Lifestyle",icon:"🍽️"},
+  {kw:["cine","cinema","movie","teatro","concert","show","entradas","evento"],sub:"Entretenimiento",cat:"Lifestyle",icon:"🎬"},
+  {kw:["ropa","clothes","zara","h&m","shopping","tienda"],sub:"Ropa",cat:"Lifestyle",icon:"👗"},
+  {kw:["salida","drinks","tragos","boliche","club"],sub:"Salidas",cat:"Lifestyle",icon:"🥂"},
+  {kw:["curso","course","libro","book","clase","class","udemy","estudio"],sub:"Educación",cat:"Personal development",icon:"📚"},
+  {kw:["retiro","retreat","workshop","taller"],sub:"Retiros",cat:"Personal development",icon:"🧘"},
+  {kw:["extraordinario","extraordinary","imprevisto","emergencia"],sub:"Extraordinario",cat:"Extraordinary expense",icon:"⚡"},
+];
+
+const smartParse=t=>{
+  const nums=t.match(/\d+[.,]?\d*/g);if(!nums)return null;
+  const amount=parseFloat(nums[nums.length-1].replace(",","."));if(!amount)return null;
+  const lower=t.toLowerCase();
+  const isX=["extraordinario","extraordinary","imprevisto","emergencia"].some(k=>lower.includes(k));
+  for(const r of RULES)if(r.kw.some(k=>lower.includes(k)))return{desc:t,amount,sub:r.sub,cat:isX&&r.cat!=="Savings"?"Extraordinary expense":r.cat,icon:isX&&r.cat!=="Savings"?"⚡":r.icon};
+  return{desc:t,amount,sub:"Otro",cat:isX?"Extraordinary expense":"Basic expenses",icon:isX?"⚡":"💳"};
+};
+
+const toWK=ds=>{const d=new Date(ds+"T12:00:00"),dow=d.getDay(),diff=dow===0?-6:1-dow,m=new Date(d);m.setDate(d.getDate()+diff);return m.toISOString().slice(0,10);};
+const todayISO=()=>new Date().toISOString().slice(0,10);
+const todayWK=()=>toWK(todayISO());
+const wkLabel=k=>{const s=new Date(k+"T12:00:00"),e=new Date(k+"T12:00:00");e.setDate(e.getDate()+6);return`${s.getDate()}/${s.getMonth()+1} – ${e.getDate()}/${e.getMonth()+1}`;};
+const fmt=n=>`$${parseFloat(n||0).toFixed(2)}`;
+
+const PRE=[
+  {id:"pre1",description:"Cole's",amount:61,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-06",weekKey:"2025-04-07"},
+  {id:"pre2",description:"Scooter semanal",amount:33,sub:"Transporte",cat:"Basic expenses",icon:"🚌",date:"2025-04-06",weekKey:"2025-04-07"},
+  {id:"pre3",description:"Bus",amount:1.50,sub:"Transporte",cat:"Basic expenses",icon:"🚌",date:"2025-04-07",weekKey:"2025-04-07"},
+  {id:"pre4",description:"Cole's",amount:17.91,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-07",weekKey:"2025-04-07"},
+  {id:"pre5",description:"Coles",amount:13.65,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-08",weekKey:"2025-04-07"},
+  {id:"pre6",description:"Farmacia medicamento",amount:25,sub:"Farmacia",cat:"Extraordinary expense",icon:"⚡",date:"2025-04-08",weekKey:"2025-04-07"},
+  {id:"pre7",description:"Bus",amount:1,sub:"Transporte",cat:"Basic expenses",icon:"🚌",date:"2025-04-08",weekKey:"2025-04-07"},
+  {id:"pre8",description:"Scooter",amount:1.28,sub:"Transporte",cat:"Basic expenses",icon:"🚌",date:"2025-04-09",weekKey:"2025-04-07"},
+  {id:"pre9",description:"Móvil / teléfono",amount:19.90,sub:"Servicios",cat:"Basic expenses",icon:"📱",date:"2025-04-09",weekKey:"2025-04-07"},
+  {id:"pre10",description:"Compeed / farmacia",amount:16.95,sub:"Farmacia",cat:"Basic expenses",icon:"💊",date:"2025-04-09",weekKey:"2025-04-07"},
+  {id:"pre11",description:"Gym",amount:49.25,sub:"Gym",cat:"Basic expenses",icon:"🏋️",date:"2025-04-10",weekKey:"2025-04-07"},
+  {id:"pre12",description:"Súper",amount:6.27,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-10",weekKey:"2025-04-07"},
+  {id:"pre13",description:"Súper",amount:3.50,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-10",weekKey:"2025-04-07"},
+  {id:"pre14",description:"Woolies",amount:3,sub:"Supermercado",cat:"Basic expenses",icon:"🛒",date:"2025-04-11",weekKey:"2025-04-07"},
+];
+
+function PieChart({data,size=220,inner=55,outer=95}){
+  const[tip,setTip]=useState(null);
+  if(!data||data.length===0)return null;
+  const total=data.reduce((s,d)=>s+d.value,0);
+  if(total===0)return null;
+  const cx=size/2,cy=size/2;
+  let angle=-Math.PI/2;
+  const slices=data.map(d=>{
+    const pct=d.value/total,a=pct*2*Math.PI;
+    const x1=cx+outer*Math.cos(angle),y1=cy+outer*Math.sin(angle);
+    const x2=cx+outer*Math.cos(angle+a),y2=cy+outer*Math.sin(angle+a);
+    const ix1=cx+inner*Math.cos(angle),iy1=cy+inner*Math.sin(angle);
+    const ix2=cx+inner*Math.cos(angle+a),iy2=cy+inner*Math.sin(angle+a);
+    const large=a>Math.PI?1:0,mid=angle+a/2;
+    const lr=inner+(outer-inner)*0.58,lx=cx+lr*Math.cos(mid),ly=cy+lr*Math.sin(mid);
+    const path=`M${ix1},${iy1} L${x1},${y1} A${outer},${outer} 0 ${large},1 ${x2},${y2} L${ix2},${iy2} A${inner},${inner} 0 ${large},0 ${ix1},${iy1} Z`;
+    const slice={...d,path,pct,lx,ly};
+    angle+=a;
+    return slice;
+  });
+  return(
+    <div style={{position:"relative",textAlign:"center"}}>
+      <svg width={size} height={size} style={{overflow:"visible"}}>
+        {slices.map((sl,i)=>(
+          <g key={i} onMouseEnter={()=>setTip(sl)} onMouseLeave={()=>setTip(null)} style={{cursor:"pointer"}}>
+            <path d={sl.path} fill={sl.fill} stroke="#fff" strokeWidth={1.5}/>
+            {sl.pct>0.04&&<text x={sl.lx} y={sl.ly} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight="bold">{Math.round(sl.pct*100)}%</text>}
+          </g>
+        ))}
+      </svg>
+      {tip&&(
+        <div style={{position:"absolute",top:"50%",left:"50%",transform:"translate(-50%,-50%)",background:S.card,border:`1px solid ${S.border}`,borderRadius:12,padding:"8px 14px",pointerEvents:"none",boxShadow:`0 4px 12px ${S.shadow}`,minWidth:110,textAlign:"center"}}>
+          <p style={{margin:0,fontSize:11,color:S.muted}}>{tip.name}</p>
+          <p style={{margin:"2px 0 0",fontWeight:"bold",fontSize:15,color:S.text}}>{fmt(tip.value)}</p>
+          <p style={{margin:"1px 0 0",fontSize:11,color:S.mutedL}}>{Math.round(tip.pct*100)}%</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Modal({show,onClose,title,children}){
+  if(!show)return null;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.45)",zIndex:200,display:"flex",alignItems:"flex-end"}} onClick={onClose}>
+      <div style={{background:S.card,borderRadius:"22px 22px 0 0",padding:"24px 20px 50px",width:"100%",maxWidth:600,margin:"0 auto"}} onClick={e=>e.stopPropagation()}>
+        <div style={{width:36,height:4,background:S.border,borderRadius:4,margin:"0 auto 20px"}}/>
+        <h3 style={{margin:"0 0 18px",fontSize:18,color:S.text}}>{title}</h3>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function SyncBadge({status}){
+  const cfg={
+    syncing:{bg:"#FEF9C3",color:"#854D0E",text:"⏳ Guardando..."},
+    ok:{bg:"#DCFCE7",color:"#166534",text:"✓ Guardado en la nube"},
+    error:{bg:"#FEE2E2",color:"#991B1B",text:"⚠️ Error al guardar"},
+    offline:{bg:"#F1F5F9",color:"#64748B",text:"Sin conexión"},
+  };
+  const c=cfg[status]||cfg.ok;
+  return <div style={{display:"inline-block",background:c.bg,color:c.color,fontSize:10,padding:"3px 10px",borderRadius:20,marginTop:4}}>{c.text}</div>;
+}
+
+function App(){
+  const[loading,setLoading]=useState(true);
+  const[syncStatus,setSyncStatus]=useState("ok");
+  const[entries,setEntries]=useState([]);
+  const[incomes,setIncomes]=useState([]);
+  const[creatives,setCreatives]=useState([]);
+  const[savings,setSavings]=useState({});
+  const[goals,setGoals]=useState({});
+  const[buckets,setBuckets]=useState(DEF_BUCKETS);
+
+  const[tab,setTab]=useState("gastos");
+  const[selWK,setSelWK]=useState(todayWK);
+  const[quickIn,setQuickIn]=useState("");
+  const[parsed,setParsed]=useState(null);
+  const[drillCat,setDrillCat]=useState(null);
+  const[incTab,setIncTab]=useState("hospitality");
+  const[editingEntry,setEditingEntry]=useState(null);
+  const[editForm,setEditForm]=useState({desc:"",amount:"",cat:"",sub:""});
+  const[showInc,setShowInc]=useState(false);
+  const[showCre,setShowCre]=useState(false);
+  const[showSav,setShowSav]=useState(false);
+  const[showGoal,setShowGoal]=useState(null);
+  const[showNewB,setShowNewB]=useState(false);
+  const[showGC,setShowGC]=useState(null);
+  const[goalInput,setGoalInput]=useState("");
+  const[goalReset,setGoalReset]=useState(false);
+  const[newBName,setNewBName]=useState("");
+  const[incF,setIncF]=useState({employer:HOSP[0],amount:"",date:todayISO(),notes:""});
+  const[creF,setCreF]=useState({origin:"",originCustom:"",amount:"",date:todayISO(),notes:""});
+  const[savF,setSavF]=useState({bucket:DEF_BUCKETS[0],amount:""});
+  const inputRef=useRef(null);
+
+  // ── LOAD FROM SUPABASE ──
+  useEffect(()=>{
+    async function loadAll(){
+      try{
+        const[eRes,iRes,cRes,sRes,gRes,bRes]=await Promise.all([
+          supabase.from("mt_entries").select("*").order("date",{ascending:false}),
+          supabase.from("mt_incomes").select("*").order("date",{ascending:false}),
+          supabase.from("mt_creatives").select("*").order("date",{ascending:false}),
+          supabase.from("mt_savings").select("*"),
+          supabase.from("mt_goals").select("*"),
+          supabase.from("mt_buckets").select("*").order("position"),
+        ]);
+        if(eRes.data&&eRes.data.length>0) setEntries(eRes.data);
+        else setEntries(PRE);
+        if(iRes.data) setIncomes(iRes.data);
+        if(cRes.data) setCreatives(cRes.data);
+        if(sRes.data){
+          const sv={};sRes.data.forEach(r=>{sv[r.bucket]=r.amount;});setSavings(sv);
+        }
+        if(gRes.data){
+          const gl={};gRes.data.forEach(r=>{gl[r.bucket]=r.amount;});setGoals(gl);
+        }
+        if(bRes.data&&bRes.data.length>0) setBuckets(bRes.data.map(r=>r.name));
+      }catch(e){console.error(e);}
+      setLoading(false);
+    }
+    loadAll();
+  },[]);
+
+  const sync=useCallback(async(fn)=>{
+    setSyncStatus("syncing");
+    try{await fn();setSyncStatus("ok");}
+    catch(e){console.error(e);setSyncStatus("error");}
+  },[]);
+
+  const allWKs=[...new Set([...entries.map(e=>e.weekkey),todayWK()])].sort().reverse();
+  const wkE=entries.filter(e=>e.weekkey===selWK);
+  const totalSpent=wkE.reduce((s,e)=>s+e.amount,0);
+  const totalSav=Object.values(savings).reduce((s,v)=>s+v,0);
+  const totalCre=creatives.reduce((s,e)=>s+e.amount,0);
+  const catTot=MAIN_CATS.reduce((a,c)=>{a[c]=wkE.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0);return a;},{});
+  const superTot=wkE.filter(e=>e.sub==="Supermercado").reduce((s,e)=>s+e.amount,0);
+  const lifeTot=catTot["Lifestyle"]||0;
+  const combined=superTot+lifeTot;
+  const combinedLeft=Math.max(0,200-combined);
+  const mainPie=MAIN_CATS.map((c,i)=>({name:c,value:catTot[c]||0,fill:CAT_COLORS[i]})).filter(d=>d.value>0);
+  const subPie=(cat,ents=wkE)=>{
+    const m={};ents.filter(e=>e.cat===cat).forEach(e=>{m[e.sub]=(m[e.sub]||0)+e.amount;});
+    const tot=Object.values(m).reduce((s,v)=>s+v,0);
+    return Object.entries(m).map(([name,value],i)=>({name,value,pct:tot>0?value/tot:0,fill:SUB_PAL[i%SUB_PAL.length]}));
+  };
+  const hospPie=HOSP.map((emp,i)=>({name:emp,value:incomes.filter(e=>e.employer===emp).reduce((s,e)=>s+e.amount,0),fill:CAT_COLORS[i]})).filter(d=>d.value>0);
+  const crePie=(()=>{const m={};creatives.forEach(e=>{const k=e.origin||"Otro";m[k]=(m[k]||0)+e.amount;});return Object.entries(m).map(([name,value],i)=>({name,value,fill:SUB_PAL[i%SUB_PAL.length]})).filter(d=>d.value>0);})();
+
+  const handleQ=v=>{setQuickIn(v);setParsed(v.trim().length>1?smartParse(v):null);};
+
+  const confirmQ=()=>{
+    if(!parsed?.amount)return;
+    const wk=todayWK();
+    const newEntry={id:crypto.randomUUID(),description:parsed.desc,amount:parsed.amount,sub:parsed.sub,cat:parsed.cat,icon:parsed.icon,date:todayISO(),weekkey:wk};
+    setEntries(p=>[newEntry,...p]);
+    setSelWK(wk);setQuickIn("");setParsed(null);inputRef.current?.focus();
+    sync(()=>supabase.from("mt_entries").insert(newEntry));
+  };
+
+  const delEntry=id=>{
+    setEntries(p=>p.filter(e=>e.id!==id));
+    sync(()=>supabase.from("mt_entries").delete().eq("id",id));
+  };
+
+  const openEdit=e=>{setEditingEntry(e.id);setEditForm({desc:e.description,amount:String(e.amount),cat:e.cat,sub:e.sub});};
+  const saveEdit=id=>{
+    const amt=parseFloat(editForm.amount.replace(",","."));
+    if(!amt||amt<=0){alert("Monto inválido");return;}
+    setEntries(p=>p.map(e=>e.id===id?{...e,desc:editForm.desc,amount:amt,cat:editForm.cat,sub:editForm.cat,icon:CAT_ICONS[editForm.cat]||e.icon}:e));
+    setEditingEntry(null);
+    sync(()=>supabase.from("mt_entries").update({description:editForm.desc,amount:amt,cat:editForm.cat,sub:editForm.cat,icon:CAT_ICONS[editForm.cat]||""}).eq("id",id));
+  };
+
+  const saveInc=()=>{
+    if(!incF.amount)return;
+    const newInc={id:crypto.randomUUID(),employer:incF.employer,amount:parseFloat(incF.amount),date:incF.date,notes:incF.notes,weekkey:toWK(incF.date)};
+    setIncomes(p=>[newInc,...p]);setIncF({employer:HOSP[0],amount:"",date:todayISO(),notes:""});setShowInc(false);
+    sync(()=>supabase.from("mt_incomes").insert(newInc));
+  };
+  const saveCre=()=>{
+    if(!creF.amount)return;
+    const origin=creF.origin==="Otro"?creF.originCustom:creF.origin;
+    const newCre={id:crypto.randomUUID(),origin,amount:parseFloat(creF.amount),date:creF.date,notes:creF.notes};
+    setCreatives(p=>[newCre,...p]);setCreF({origin:"",originCustom:"",amount:"",date:todayISO(),notes:""});setShowCre(false);
+    sync(()=>supabase.from("mt_creatives").insert(newCre));
+  };
+  const delInc=id=>{setIncomes(p=>p.filter(e=>e.id!==id));sync(()=>supabase.from("mt_incomes").delete().eq("id",id));};
+  const delCre=id=>{setCreatives(p=>p.filter(e=>e.id!==id));sync(()=>supabase.from("mt_creatives").delete().eq("id",id));};
+
+  const saveSav=()=>{
+    if(!savF.amount)return;
+    const amt=parseFloat(savF.amount),b=savF.bucket,newAmt=(savings[b]||0)+amt;
+    setSavings(p=>({...p,[b]:newAmt}));setSavF(f=>({...f,amount:""}));setShowSav(false);
+    if((goals[b]||0)>0&&newAmt>=(goals[b]||0))setShowGC(b);
+    sync(()=>supabase.from("mt_savings").upsert({bucket:b,amount:newAmt},{onConflict:"bucket"}));
+  };
+  const openGoal=b=>{setGoalInput(String(goals[b]||""));setGoalReset(false);setShowGoal(b);};
+  const saveGoal=()=>{
+    const b=showGoal;
+    if(goalReset){
+      setSavings(p=>({...p,[b]:0}));setGoals(p=>({...p,[b]:0}));
+      sync(async()=>{
+        await supabase.from("mt_savings").upsert({bucket:b,amount:0},{onConflict:"bucket"});
+        await supabase.from("mt_goals").upsert({bucket:b,amount:0},{onConflict:"bucket"});
+      });
+    }else{
+      const t=parseFloat(goalInput.replace(",","."));if(!t||t<=0){alert("Ingresá un monto válido");return;}
+      setGoals(p=>({...p,[b]:t}));
+      sync(()=>supabase.from("mt_goals").upsert({bucket:b,amount:t},{onConflict:"bucket"}));
+    }
+    setShowGoal(null);
+  };
+  const addBucket=()=>{
+    const n=newBName.trim();if(!n)return;
+    const pos=buckets.length;
+    setBuckets(p=>[...p,n]);setNewBName("");setShowNewB(false);
+    sync(()=>supabase.from("mt_buckets").insert({name:n,position:pos}));
+  };
+  const delBucket=b=>{
+    setBuckets(p=>p.filter(x=>x!==b));
+    setSavings(p=>{const n={...p};delete n[b];return n;});
+    setGoals(p=>{const n={...p};delete n[b];return n;});
+    sync(async()=>{
+      await supabase.from("mt_buckets").delete().eq("name",b);
+      await supabase.from("mt_savings").delete().eq("bucket",b);
+      await supabase.from("mt_goals").delete().eq("bucket",b);
+    });
+  };
+
+  if(loading) return(
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",minHeight:"100vh",gap:16,color:S.muted}}>
+      <div style={{fontSize:40}}>💎</div>
+      <p style={{fontSize:14}}>Cargando tus datos...</p>
+    </div>
+  );
+
+  return(
+    <div style={{minHeight:"100vh",background:S.bg,paddingBottom:100}}>
+      <div style={{background:"linear-gradient(160deg,#E8ECF2,#F5F7FA,#FFF)",padding:"44px 20px 24px",textAlign:"center",borderBottom:`1px solid ${S.border}`,boxShadow:`0 2px 12px ${S.shadow}`}}>
+        <p style={{fontSize:10,letterSpacing:5,color:S.muted,margin:"0 0 6px",textTransform:"uppercase"}}>Mis finanzas · AUD</p>
+        <h1 style={{fontSize:28,fontWeight:"bold",margin:"0 0 4px",letterSpacing:-1,color:S.accentD}}>Money Tracker 💎</h1>
+        <p style={{fontSize:12,color:S.muted,margin:"0 0 4px"}}>Control semanal inteligente</p>
+        <SyncBadge status={syncStatus}/>
+      </div>
+
+      <div style={{background:"linear-gradient(135deg,#E8ECF2,#F0F4F8)",borderBottom:`1px solid ${S.border}`,padding:"16px 24px"}}>
+        <div style={{maxWidth:600,margin:"0 auto",display:"flex",gap:14,alignItems:"center"}}>
+          <div style={{fontSize:28}}>🌬️🍃</div>
+          <p style={{margin:0,fontSize:13,color:S.text2,fontStyle:"italic",lineHeight:1.65}}>"Ahorro es el dinero que un esclavo necesitaba para comprar su <strong style={{color:S.accentD,fontStyle:"normal"}}>LIBERTAD</strong> 🌬️🍃"</p>
+        </div>
+      </div>
+
+      <div style={{background:S.card,borderBottom:`1px solid ${S.border}`,padding:"14px 16px",boxShadow:`0 2px 8px ${S.shadow}`}}>
+        <div style={{maxWidth:600,margin:"0 auto",position:"relative"}}>
+          <div style={{display:"flex",gap:8}}>
+            <input ref={inputRef} value={quickIn} onChange={e=>handleQ(e.target.value)} onKeyDown={e=>e.key==="Enter"&&confirmQ()} placeholder='Ej: "Coles 15" · "Ahorro 50"' style={{...inp,flex:1}}/>
+            <button onClick={confirmQ} disabled={!parsed} style={{...btnP,padding:"11px 18px",fontSize:18,opacity:parsed?1:0.35}}>→</button>
+          </div>
+          {parsed&&(
+            <div style={{position:"absolute",top:"100%",left:0,right:0,background:S.card,border:`2px solid ${S.accentD}`,borderRadius:14,padding:"12px 16px",zIndex:50,boxShadow:`0 8px 24px ${S.shadowM}`,marginTop:6}}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <div><p style={{margin:0,fontWeight:"bold",fontSize:15}}>{parsed.icon} {parsed.sub}</p><p style={{margin:"3px 0 0",fontSize:12,color:S.muted}}>{parsed.cat}</p></div>
+                <p style={{margin:0,fontWeight:"bold",fontSize:22,color:S.accentD}}>{fmt(parsed.amount)}</p>
+              </div>
+              <p style={{margin:"8px 0 0",fontSize:11,color:S.mutedL}}>↵ Enter o → para confirmar</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div style={{display:"flex",background:S.card,borderBottom:`1px solid ${S.border}`,position:"sticky",top:0,zIndex:90,boxShadow:`0 2px 6px ${S.shadow}`}}>
+        {[["gastos","💸 Gastos"],["ingresos","💼 Ingresos"],["ahorros","🏦 Ahorros"],["resumen","📊 Historial"]].map(([key,label])=>(
+          <button key={key} onClick={()=>setTab(key)} style={{flex:1,padding:"13px 4px",border:"none",background:"transparent",color:tab===key?S.accentD:S.mutedL,fontFamily:"Georgia,serif",fontSize:11,cursor:"pointer",fontWeight:tab===key?"bold":"normal",borderBottom:tab===key?`2px solid ${S.accentD}`:"2px solid transparent"}}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab==="gastos"&&(
+        <div style={{padding:"16px",maxWidth:600,margin:"0 auto"}}>
+          <select value={selWK} onChange={e=>{setSelWK(e.target.value);setDrillCat(null);}} style={{...inp,marginBottom:14}}>
+            {allWKs.map(w=><option key={w} value={w}>{wkLabel(w)}{w===todayWK()?" · esta semana":""}</option>)}
+          </select>
+          <div style={card}>
+            <p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 12px",fontWeight:"bold"}}>🎯 Meta semanal · Súper + Salidas = $200</p>
+            <div style={{display:"flex",gap:8,marginBottom:10}}>
+              {[{label:"🛒 Súper",val:superTot,over:superTot>100},{label:"✨ Salidas",val:lifeTot,over:lifeTot>100},{label:"💚 Queda",val:combinedLeft,green:true}].map(({label,val,over,green})=>(
+                <div key={label} style={{flex:1,background:green&&val>0?"#F0FDF4":over?"#FEF2F2":S.bg,borderRadius:12,padding:"10px 6px",textAlign:"center",border:`1px solid ${green?"#BBF7D0":over?"#FECACA":S.border}`}}>
+                  <p style={{margin:"0 0 2px",fontSize:10,color:S.mutedL}}>{label}</p>
+                  <p style={{margin:0,fontSize:17,fontWeight:"bold",color:green?S.green:over?S.red:S.text}}>{fmt(val)}</p>
+                </div>
+              ))}
+            </div>
+            <div style={{background:S.bg,borderRadius:8,height:8,overflow:"hidden",border:`1px solid ${S.border}`}}>
+              <div style={{width:`${Math.min(100,(combined/200)*100)}%`,height:"100%",background:combined>200?S.red:"linear-gradient(90deg,#6B7280,#1E293B)",borderRadius:8,transition:"width 0.4s"}}/>
+            </div>
+            <p style={{margin:"5px 0 0",fontSize:11,color:S.mutedL,textAlign:"right"}}>{fmt(combined)} de $200.00</p>
+          </div>
+
+          {(drillCat?subPie(drillCat):mainPie).length>0&&(
+            <div style={card}>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:12}}>
+                <div>
+                  <p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 2px",fontWeight:"bold"}}>{drillCat||"Distribución semanal"}</p>
+                  <p style={{fontSize:24,fontWeight:"bold",margin:0}}>{fmt(drillCat?catTot[drillCat]:totalSpent)}</p>
+                </div>
+                {drillCat&&<button onClick={()=>setDrillCat(null)} style={{background:S.silverL,border:`1px solid ${S.border}`,borderRadius:10,padding:"8px 14px",color:S.accentD,fontSize:13,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:"bold"}}>← Volver</button>}
+              </div>
+              <PieChart data={drillCat?subPie(drillCat):mainPie} size={220} inner={55} outer={95}/>
+              {!drillCat&&<p style={{fontSize:11,color:S.mutedL,margin:"10px 0 6px",fontStyle:"italic",textAlign:"center"}}>Tocá una fila para ver subcategorías 👇</p>}
+              <div style={{marginTop:8}}>
+                {(drillCat?subPie(drillCat):mainPie).map((d,i)=>(
+                  <button key={i} onClick={()=>!drillCat&&setDrillCat(d.name)} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 14px",borderRadius:12,border:`1.5px solid ${d.fill}50`,background:`${d.fill}0D`,cursor:drillCat?"default":"pointer",fontFamily:"Georgia,serif",width:"100%",marginBottom:6}}>
+                    <div style={{display:"flex",alignItems:"center",gap:10}}>
+                      <div style={{width:12,height:12,borderRadius:4,background:d.fill,flexShrink:0}}/>
+                      <span style={{fontSize:13,color:S.text2,fontWeight:"600"}}>{!drillCat&&CAT_ICONS[d.name]} {d.name}</span>
+                    </div>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}>
+                      <span style={{fontSize:11,color:"#fff",background:d.fill,padding:"2px 8px",borderRadius:10,fontWeight:"bold"}}>{Math.round((d.value/(drillCat?catTot[drillCat]||1:totalSpent||1))*100)}%</span>
+                      <span style={{fontSize:14,fontWeight:"bold"}}>{fmt(d.value)}</span>
+                      {!drillCat&&<span style={{color:S.mutedL}}>›</span>}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div style={card}>
+            <p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 12px",fontWeight:"bold"}}>Gastos · {wkLabel(selWK)}</p>
+            {wkE.length===0
+              ?<div style={{textAlign:"center",padding:"28px 0",color:S.mutedL}}><p style={{fontSize:36,margin:"0 0 8px"}}>💸</p><p style={{margin:0,fontSize:13}}>Escribí un gasto arriba</p></div>
+              :[...wkE].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
+                <div key={e.id} style={{borderBottom:`1px solid ${S.border}`}}>
+                  {editingEntry===e.id?(
+                    <div style={{padding:"12px 0"}}>
+                      <p style={{fontSize:11,color:S.muted,margin:"0 0 10px",fontWeight:"bold"}}>✏️ Editando gasto</p>
+                      <div style={{marginBottom:8}}><p style={{fontSize:11,color:S.muted,margin:"0 0 4px"}}>Descripción</p><input value={editForm.desc} onChange={e=>setEditForm(f=>({...f,desc:e.target.value}))} style={{...inp,fontSize:14}}/></div>
+                      <div style={{marginBottom:8}}><p style={{fontSize:11,color:S.muted,margin:"0 0 4px"}}>Monto AUD</p><input type="number" value={editForm.amount} onChange={e=>setEditForm(f=>({...f,amount:e.target.value}))} style={{...inp,fontSize:18,fontWeight:"bold"}}/></div>
+                      <div style={{marginBottom:12}}>
+                        <p style={{fontSize:11,color:S.muted,margin:"0 0 6px"}}>Categoría</p>
+                        <div style={{display:"flex",flexDirection:"column",gap:5}}>
+                          {MAIN_CATS.map(cat=>(
+                            <button key={cat} onClick={()=>setEditForm(f=>({...f,cat}))}
+                              style={{padding:"8px 14px",border:`1.5px solid ${editForm.cat===cat?S.accentD:S.border}`,borderRadius:10,background:editForm.cat===cat?`${S.accentD}12`:S.bg,cursor:"pointer",fontFamily:"Georgia,serif",fontSize:13,textAlign:"left",color:editForm.cat===cat?S.accentD:S.text2,fontWeight:editForm.cat===cat?"bold":"normal"}}>
+                              {CAT_ICONS[cat]} {cat} {editForm.cat===cat?"✓":""}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div style={{display:"flex",gap:8}}><button onClick={()=>setEditingEntry(null)} style={{...btnG,flex:1,padding:"10px"}}>Cancelar</button><button onClick={()=>saveEdit(e.id)} style={{...btnP,flex:2,padding:"10px"}}>Guardar</button></div>
+                    </div>
+                  ):(
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"11px 0"}}>
+                      <div style={{flex:1,cursor:"pointer"}} onClick={()=>openEdit(e)}>
+                        <p style={{margin:0,fontWeight:"bold",fontSize:13}}>{e.icon} {e.description}</p>
+                        <div style={{display:"flex",gap:5,marginTop:4,flexWrap:"wrap"}}>
+                          <span style={{fontSize:10,background:S.silverL,color:S.accent,padding:"2px 8px",borderRadius:10}}>{e.sub}</span>
+                          <span style={{fontSize:10,color:S.mutedL}}>{e.date?.slice(5)?.replace("-","/")}</span>
+                          <span style={{fontSize:10,color:S.mutedL,fontStyle:"italic"}}>✏️ tocar para editar</span>
+                        </div>
+                      </div>
+                      <div style={{display:"flex",alignItems:"center",gap:8}}>
+                        <span style={{fontWeight:"bold",fontSize:15}}>{fmt(e.amount)}</span>
+                        <button onClick={()=>delEntry(e.id)} style={{background:"transparent",border:"none",color:S.mutedL,cursor:"pointer",fontSize:20,padding:"0 4px"}}>×</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
+      {tab==="ingresos"&&(
+        <div style={{padding:"16px",maxWidth:600,margin:"0 auto"}}>
+          <div style={{display:"flex",background:S.card,borderRadius:14,border:`1px solid ${S.border}`,padding:4,gap:4,marginBottom:16}}>
+            {[["hospitality","🍺 Hospitality"],["creative","🎨 Creativos"]].map(([key,label])=>(
+              <button key={key} onClick={()=>setIncTab(key)} style={{flex:1,padding:"10px",border:"none",borderRadius:10,background:incTab===key?S.accentD:"transparent",color:incTab===key?"#fff":S.muted,fontFamily:"Georgia,serif",fontSize:13,cursor:"pointer",fontWeight:incTab===key?"bold":"normal"}}>
+                {label}
+              </button>
+            ))}
+          </div>
+          {incTab==="hospitality"&&<>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div><p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 2px",fontWeight:"bold"}}>Total hospitality</p><p style={{fontSize:26,fontWeight:"bold",color:S.green,margin:0}}>{fmt(incomes.reduce((s,e)=>s+e.amount,0))}</p></div>
+              <button onClick={()=>setShowInc(true)} style={{...btnP,padding:"11px 18px",fontSize:20}}>+</button>
+            </div>
+            {hospPie.length>0&&<div style={{...card,textAlign:"center"}}><PieChart data={hospPie} size={200} inner={45} outer={85}/><div style={{display:"flex",flexDirection:"column",gap:6,marginTop:8}}>{hospPie.map((d,i)=><div key={i} style={{display:"flex",justifyContent:"space-between"}}><div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:10,height:10,borderRadius:3,background:d.fill}}/><span style={{fontSize:13,color:S.text2}}>{d.name}</span></div><span style={{fontSize:13,fontWeight:"bold",color:S.green}}>{fmt(d.value)}</span></div>)}</div></div>}
+            <div style={card}>
+              {incomes.length===0?<div style={{textAlign:"center",padding:"24px 0",color:S.mutedL}}><p style={{fontSize:36}}>💼</p><p style={{fontSize:13,marginTop:8}}>Tocá + para agregar</p></div>
+              :[...incomes].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
+                <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${S.border}`}}>
+                  <div><p style={{margin:0,fontWeight:"bold",fontSize:13}}>{e.employer}</p><span style={{fontSize:10,color:S.mutedL}}>{e.date?.slice(5)?.replace("-","/")} {e.notes&&`· ${e.notes}`}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:"bold",fontSize:15,color:S.green}}>{fmt(e.amount)}</span><button onClick={()=>delInc(e.id)} style={{background:"transparent",border:"none",color:S.mutedL,cursor:"pointer",fontSize:20}}>×</button></div>
+                </div>
+              ))}
+            </div>
+          </>}
+          {incTab==="creative"&&<>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+              <div><p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 2px",fontWeight:"bold"}}>Total creativos</p><p style={{fontSize:26,fontWeight:"bold",color:S.green,margin:0}}>{fmt(totalCre)}</p></div>
+              <button onClick={()=>setShowCre(true)} style={{...btnP,padding:"11px 18px",fontSize:20}}>+</button>
+            </div>
+            {crePie.length>0&&<div style={{...card,textAlign:"center"}}><PieChart data={crePie} size={200} inner={45} outer={85}/></div>}
+            <div style={card}>
+              {creatives.length===0?<div style={{textAlign:"center",padding:"24px 0",color:S.mutedL}}><p style={{fontSize:36}}>🎨</p><p style={{fontSize:13,marginTop:8}}>Tocá + para agregar</p></div>
+              :[...creatives].sort((a,b)=>b.date.localeCompare(a.date)).map(e=>(
+                <div key={e.id} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"10px 0",borderBottom:`1px solid ${S.border}`}}>
+                  <div><p style={{margin:0,fontWeight:"bold",fontSize:13}}>{e.origin}</p><span style={{fontSize:10,color:S.mutedL}}>{e.date?.slice(5)?.replace("-","/")} {e.notes&&`· ${e.notes}`}</span></div>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><span style={{fontWeight:"bold",fontSize:15,color:S.green}}>{fmt(e.amount)}</span><button onClick={()=>delCre(e.id)} style={{background:"transparent",border:"none",color:S.mutedL,cursor:"pointer",fontSize:20}}>×</button></div>
+                </div>
+              ))}
+            </div>
+          </>}
+        </div>
+      )}
+
+      {tab==="ahorros"&&(
+        <div style={{padding:"16px",maxWidth:600,margin:"0 auto"}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+            <div><p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 2px",fontWeight:"bold"}}>Total ahorrado</p><p style={{fontSize:28,fontWeight:"bold",color:S.accentD,margin:0}}>{fmt(totalSav)}</p></div>
+            <div style={{display:"flex",gap:8}}>
+              <button onClick={()=>setShowNewB(true)} style={{...btnG,padding:"10px 12px",fontSize:12}}>+ Cat.</button>
+              <button onClick={()=>setShowSav(true)} style={{...btnP,padding:"11px 18px",fontSize:20}}>+</button>
+            </div>
+          </div>
+          {totalSav>0&&<div style={{...card,textAlign:"center"}}><PieChart data={buckets.map((b,i)=>({name:b,value:savings[b]||0,fill:SUB_PAL[i%SUB_PAL.length]})).filter(d=>d.value>0)} size={220} inner={50} outer={92}/></div>}
+          {buckets.map((b,i)=>{
+            const amt=savings[b]||0,goal=goals[b]||0,pct=goal>0?Math.min(100,(amt/goal)*100):0;
+            return(
+              <div key={i} style={card}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8}}><div style={{width:12,height:12,borderRadius:4,background:SUB_PAL[i%SUB_PAL.length],flexShrink:0}}/><p style={{margin:0,fontWeight:"bold",fontSize:15}}>{b}</p></div>
+                  <div style={{textAlign:"right"}}><p style={{margin:0,fontWeight:"bold",fontSize:20,color:S.accentD}}>{fmt(amt)}</p>{goal>0&&<p style={{margin:"1px 0 0",fontSize:11,color:S.mutedL}}>meta: {fmt(goal)}</p>}</div>
+                </div>
+                {goal>0&&<div style={{marginBottom:10}}>
+                  <div style={{background:S.bg,borderRadius:8,height:10,border:`1px solid ${S.border}`,overflow:"hidden"}}><div style={{width:`${pct}%`,height:"100%",background:pct>=100?"#15803D":SUB_PAL[i%SUB_PAL.length],borderRadius:8,transition:"width 0.5s"}}/></div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:5}}><span style={{fontSize:11,color:S.mutedL}}>{Math.round(pct)}% logrado</span>{pct>=100?<span style={{fontSize:11,color:S.green,fontWeight:"bold"}}>🎉 ¡Meta alcanzada!</span>:<span style={{fontSize:11,color:S.mutedL}}>Faltan {fmt(goal-amt)}</span>}</div>
+                </div>}
+                <div style={{display:"flex",gap:8,flexWrap:"wrap"}}>
+                  <button onClick={()=>openGoal(b)} style={{background:S.silverL,border:`1px solid ${S.border}`,borderRadius:10,padding:"7px 14px",color:S.accentD,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:"bold"}}>{goal>0?"✏️ Editar meta":"🎯 Agregar meta"}</button>
+                  <button onClick={()=>{setSavF({bucket:b,amount:""});setShowSav(true);}} style={{background:"#F0FDF4",border:"1px solid #BBF7D0",borderRadius:10,padding:"7px 14px",color:S.green,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif",fontWeight:"bold"}}>+ Depositar</button>
+                  <button onClick={()=>delBucket(b)} style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:10,padding:"7px 10px",color:S.red,fontSize:12,cursor:"pointer",fontFamily:"Georgia,serif"}}>🗑</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tab==="resumen"&&(
+        <div style={{padding:"16px",maxWidth:600,margin:"0 auto"}}>
+          <p style={{fontSize:10,letterSpacing:2,color:S.muted,textTransform:"uppercase",margin:"0 0 14px",fontWeight:"bold"}}>Historial semanal 📊</p>
+          {[...new Set(entries.map(e=>e.weekkey))].sort().reverse().slice(0,20).map((wk,i)=>{
+            const ents=entries.filter(e=>e.weekkey===wk);
+            const pd=MAIN_CATS.map((c,j)=>({name:c,value:ents.filter(e=>e.cat===c).reduce((s,e)=>s+e.amount,0),fill:CAT_COLORS[j]})).filter(d=>d.value>0);
+            const total=pd.reduce((s,d)=>s+d.value,0);
+            return(
+              <div key={i} style={card}>
+                <div style={{marginBottom:12}}><p style={{margin:0,fontSize:10,color:S.mutedL}}>{wkLabel(wk)}</p><p style={{margin:"2px 0 0",fontWeight:"bold",fontSize:20}}>{fmt(total)}</p></div>
+                {pd.length>0&&<>
+                  <PieChart data={pd} size={190} inner={38} outer={78}/>
+                  <div style={{display:"flex",gap:5,flexWrap:"wrap",marginTop:10}}>
+                    {pd.map((d,j)=><span key={j} style={{fontSize:10,background:S.bg,color:S.muted,padding:"2px 8px",borderRadius:10,border:`1px solid ${S.border}`}}>{d.name.replace(" expenses","").replace("Personal development","Desarrollo").replace("Extraordinary expense","Extra")}: {fmt(d.value)}</span>)}
+                  </div>
+                </>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <Modal show={showInc} onClose={()=>setShowInc(false)} title="🍺 Ingreso Hospitality">
+        <div style={{marginBottom:12}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Empleador</p><select value={incF.employer} onChange={e=>setIncF(f=>({...f,employer:e.target.value}))} style={inp}>{HOSP.map(e=><option key={e}>{e}</option>)}</select></div>
+        <div style={{display:"flex",gap:10,marginBottom:12}}>
+          <div style={{flex:1}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Monto AUD</p><input type="number" value={incF.amount} onChange={e=>setIncF(f=>({...f,amount:e.target.value}))} placeholder="0.00" style={inp}/></div>
+          <div style={{flex:1}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Fecha</p><input type="date" value={incF.date} onChange={e=>setIncF(f=>({...f,date:e.target.value}))} style={inp}/></div>
+        </div>
+        <div style={{marginBottom:18}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Notas</p><input value={incF.notes} onChange={e=>setIncF(f=>({...f,notes:e.target.value}))} placeholder="propinas, turno doble…" style={inp}/></div>
+        <div style={{display:"flex",gap:10}}><button onClick={()=>setShowInc(false)} style={{...btnG,flex:1}}>Cancelar</button><button onClick={saveInc} style={{...btnP,flex:2}}>Guardar</button></div>
+      </Modal>
+
+      <Modal show={showCre} onClose={()=>setShowCre(false)} title="🎨 Ingreso Creativo">
+        <div style={{marginBottom:12}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Origen</p><select value={creF.origin} onChange={e=>setCreF(f=>({...f,origin:e.target.value}))} style={inp}><option value="">Seleccioná…</option>{["Revista","Retiro","Workshop","Fotografía","Diseño","Concurso","Otro"].map(o=><option key={o}>{o}</option>)}</select></div>
+        {creF.origin==="Otro"&&<div style={{marginBottom:12}}><input value={creF.originCustom} onChange={e=>setCreF(f=>({...f,originCustom:e.target.value}))} placeholder="Especificá el origen" style={inp}/></div>}
+        <div style={{display:"flex",gap:10,marginBottom:12}}>
+          <div style={{flex:1}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Monto AUD</p><input type="number" value={creF.amount} onChange={e=>setCreF(f=>({...f,amount:e.target.value}))} placeholder="0.00" style={inp}/></div>
+          <div style={{flex:1}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Fecha</p><input type="date" value={creF.date} onChange={e=>setCreF(f=>({...f,date:e.target.value}))} style={inp}/></div>
+        </div>
+        <div style={{marginBottom:18}}><input value={creF.notes} onChange={e=>setCreF(f=>({...f,notes:e.target.value}))} placeholder="Notas…" style={inp}/></div>
+        <div style={{display:"flex",gap:10}}><button onClick={()=>setShowCre(false)} style={{...btnG,flex:1}}>Cancelar</button><button onClick={saveCre} style={{...btnP,flex:2}}>Guardar</button></div>
+      </Modal>
+
+      <Modal show={showSav} onClose={()=>setShowSav(false)} title="🏦 Depositar ahorro">
+        <div style={{marginBottom:12}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Destino</p><select value={savF.bucket} onChange={e=>setSavF(f=>({...f,bucket:e.target.value}))} style={inp}>{buckets.map(b=><option key={b}>{b}</option>)}</select></div>
+        <div style={{marginBottom:18}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Monto AUD</p><input type="number" value={savF.amount} onChange={e=>setSavF(f=>({...f,amount:e.target.value}))} placeholder="0.00" style={inp}/></div>
+        <div style={{display:"flex",gap:10}}><button onClick={()=>setShowSav(false)} style={{...btnG,flex:1}}>Cancelar</button><button onClick={saveSav} style={{...btnP,flex:2}}>Guardar</button></div>
+      </Modal>
+
+      <Modal show={!!showGoal} onClose={()=>setShowGoal(null)} title={`🎯 Meta: ${showGoal}`}>
+        <p style={{margin:"0 0 16px",fontSize:13,color:S.muted}}>Ahorro actual: <strong style={{color:S.accentD}}>{fmt(savings[showGoal]||0)}</strong></p>
+        <div style={{display:"flex",flexDirection:"column",gap:10,marginBottom:18}}>
+          <button onClick={()=>setGoalReset(false)} style={{padding:"14px 16px",border:`2px solid ${!goalReset?S.accentD:S.border}`,borderRadius:14,background:!goalReset?`${S.accentD}12`:S.bg,cursor:"pointer",textAlign:"left",fontFamily:"Georgia,serif"}}><p style={{margin:"0 0 3px",fontWeight:"bold",fontSize:14,color:S.text}}>✏️ Cambiar meta</p><p style={{margin:0,fontSize:12,color:S.muted}}>Definir un objetivo de monto</p></button>
+          <button onClick={()=>setGoalReset(true)} style={{padding:"14px 16px",border:`2px solid ${goalReset?S.red:S.border}`,borderRadius:14,background:goalReset?"#FEF2F2":S.bg,cursor:"pointer",textAlign:"left",fontFamily:"Georgia,serif"}}><p style={{margin:"0 0 3px",fontWeight:"bold",fontSize:14,color:S.red}}>🔄 Resetear todo</p><p style={{margin:0,fontSize:12,color:S.muted}}>Poner saldo y meta en $0</p></button>
+        </div>
+        {!goalReset&&(<div style={{marginBottom:18}}><p style={{fontSize:11,color:S.muted,margin:"0 0 8px",fontWeight:"bold"}}>Nueva meta AUD</p><input type="number" value={goalInput} onChange={e=>setGoalInput(e.target.value)} placeholder="ej: 2000" style={{...inp,fontSize:22,fontWeight:"bold",textAlign:"center"}}/>{parseFloat(goalInput)>0&&<p style={{margin:"8px 0 0",fontSize:13,color:S.green,fontWeight:"bold",textAlign:"center"}}>✓ Meta: {fmt(parseFloat(goalInput))}</p>}</div>)}
+        {goalReset&&<div style={{background:"#FEF2F2",border:"1px solid #FECACA",borderRadius:12,padding:"12px 16px",marginBottom:18}}><p style={{margin:0,fontSize:13,color:S.red}}>⚠️ Esto pondrá el saldo y meta de <strong>{showGoal}</strong> en $0.00</p></div>}
+        <div style={{display:"flex",gap:10}}><button onClick={()=>setShowGoal(null)} style={{...btnG,flex:1}}>Cancelar</button><button onClick={saveGoal} style={{...btnP,flex:2,background:goalReset?S.red:S.accentD}}>{goalReset?"Resetear":"Guardar meta"}</button></div>
+      </Modal>
+
+      <Modal show={showNewB} onClose={()=>setShowNewB(false)} title="✨ Nueva categoría de ahorro">
+        <div style={{marginBottom:18}}><p style={{fontSize:11,color:S.muted,margin:"0 0 5px",fontWeight:"bold"}}>Nombre</p><input autoFocus value={newBName} onChange={e=>setNewBName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&addBucket()} placeholder="ej: Viaje a Japón" style={inp}/></div>
+        <div style={{display:"flex",gap:10}}><button onClick={()=>setShowNewB(false)} style={{...btnG,flex:1}}>Cancelar</button><button onClick={addBucket} style={{...btnP,flex:2}}>Crear</button></div>
+      </Modal>
+
+      {showGC&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:300,display:"flex",alignItems:"center",justifyContent:"center",padding:20}}>
+          <div style={{background:S.card,borderRadius:22,padding:"32px 24px",maxWidth:340,width:"100%",textAlign:"center",boxShadow:`0 16px 48px ${S.shadowM}`}}>
+            <p style={{fontSize:48,margin:"0 0 12px"}}>🎉</p>
+            <h3 style={{margin:"0 0 8px",fontSize:20}}>¡Meta alcanzada!</h3>
+            <p style={{margin:"0 0 24px",fontSize:14,color:S.muted}}><strong>{showGC}</strong> llegó a su objetivo.</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              <button onClick={()=>{openGoal(showGC);setShowGC(null);}} style={{...btnP,width:"100%"}}>📈 Aumentar la meta</button>
+              <button onClick={()=>{setSavings(p=>({...p,[showGC]:0}));setGoals(p=>({...p,[showGC]:0}));setShowGC(null);sync(async()=>{await supabase.from("mt_savings").upsert({bucket:showGC,amount:0},{onConflict:"bucket"});await supabase.from("mt_goals").upsert({bucket:showGC,amount:0},{onConflict:"bucket"});});}} style={{...btnG,width:"100%",color:S.red,borderColor:"#FECACA"}}>✅ Resetear</button>
+              <button onClick={()=>setShowGC(null)} style={{...btnG,width:"100%"}}>Cerrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
